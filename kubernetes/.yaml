@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-1
+  labels:
+    app: nginx-1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-1
+  template:
+    metadata:
+      labels:
+        app: nginx-1
+        tier: backend
+    spec:
+      containers:
+        - name: petclinic-copy-sha256-1
+          image: gcr.io/kajetangcpcourse/github.com/kajtohalko/petclinic-copy@sha256:746dc4f7755ef802a802fc4768330d97bfe375fd9dc8fd6f8a50928659b7cb7a
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http-server
+              containerPort: 8080
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: my-secret
+                  key: username
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: my-secret
+                  key: password
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: my-secret
+                  key: database
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  key: PORT
+                  name: nginx-1-config-uh7y
+        - name: cloud-sql-proxy
+          image: gcr.io/cloudsql-docker/gce-proxy:1.17
+          command:
+            - "/cloud_sql_proxy"
+            - "-instances=kajetangcpcourse:europe-north1:mysql-db-2=tcp:3306"
+            - "-ip_address_types=PRIVATE"
+            - "-credential_file=/secrets/service-account.json"
+          securityContext:
+            runAsNonRoot: true
+          volumeMounts:
+            - name: sa-secret-volume
+              mountPath: /secrets/
+              readOnly: true
+          resources:
+            requests:
+              memory: "0.2Gi"
+              cpu:    "0.1"
+      volumes:
+        - name: sa-secret-volume
+          secret:
+            secretName: sa-secret
